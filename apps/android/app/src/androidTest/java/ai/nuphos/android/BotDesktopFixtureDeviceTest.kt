@@ -451,14 +451,48 @@ class BotDesktopFixtureDeviceTest {
         return top
     }
 
+    private var diagStep = 0
+    private fun diag(tag: String): String {
+        val sb = StringBuilder("[$tag]")
+        inst.runOnMainSync {
+            val dm = compose.activity.resources.displayMetrics
+            sb.append(" screen=${dm.widthPixels}x${dm.heightPixels} density=${dm.density}")
+            val view = compose.activity.window.decorView
+            val at = IntArray(2).also(view::getLocationOnScreen)
+            sb.append(" decor=(${at[0]},${at[1]}) h=${view.height}")
+            val ins = androidx.core.view.ViewCompat.getRootWindowInsets(view)
+            fun i(t: Int) = ins?.getInsets(t)?.let { "${it.top}/${it.bottom}" }
+            sb.append(" ime=${i(androidx.core.view.WindowInsetsCompat.Type.ime())} status=${i(androidx.core.view.WindowInsetsCompat.Type.statusBars())} nav=${i(androidx.core.view.WindowInsetsCompat.Type.navigationBars())}")
+        }
+        for (t in listOf("task-summary", "bot-instructions-field", "bot-instructions-actions")) {
+            val n = compose.onAllNodesWithTag(t).fetchSemanticsNodes().firstOrNull()
+            sb.append(" $t=${n?.boundsInWindow}@${n?.positionOnScreen}")
+        }
+        compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange)).fetchSemanticsNodes().forEach {
+            val r = it.config[SemanticsProperties.VerticalScrollAxisRange]
+            sb.append(" scroll=${r.value()}/${r.maxValue()} in ${it.boundsInWindow}@${it.positionOnScreen}")
+        }
+        sb.append(" keyboardTop=${keyboardTop()}")
+        captureComposer("diag-4886-${++diagStep}-$tag")
+        val out = InstrumentationRegistry.getArguments().getString("additionalTestOutputDir")?.let(::File)
+            ?: inst.targetContext.getExternalFilesDir(null)
+        out?.let { it.mkdirs(); File(it, "diag-4886.txt").appendText(sb.toString() + "\n") }
+        return sb.toString()
+    }
+
     private fun assertActionsAboveKeyboard() {
         compose.waitForIdle()
         Thread.sleep(600) // the keyboard's slide and the scroll that follows it
         compose.waitForIdle()
+        val early = diag("after600ms")
+        Thread.sleep(3000)
+        compose.waitForIdle()
+        val late = diag("after3600ms")
+        android.util.Log.i("diag4886", early + "\n" + late)
         val top = keyboardTop() ?: error("The keyboard closed")
         val row = compose.onNodeWithTag("bot-instructions-actions").fetchSemanticsNode()
         val bottom = row.positionOnScreen.y + row.size.height
-        assertTrue("Cancel and Save end at $bottom, under the keyboard at $top", bottom <= top)
+        assertTrue("Cancel and Save end at $bottom, under the keyboard at $top\n$early\n$late", bottom <= top)
         compose.onNodeWithTag("bot-instructions-save").assertIsDisplayed()
     }
 
