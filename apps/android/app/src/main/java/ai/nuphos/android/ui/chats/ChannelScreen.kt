@@ -350,7 +350,7 @@ private fun BotInstructionsCard(botId: String) {
     // Cancel and Save stay above the keyboard as it opens, and when a refusal adds a line under the field.
     val actions = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     val keyboard = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
-    LaunchedEffect(draft != null, keyboard, error) { if (draft != null) actions.bringIntoView() }
+    LaunchedEffect(draft != null, keyboard, error) { if (draft != null) { androidx.compose.runtime.withFrameNanos { }; actions.bringIntoView() } }
     ai.nuphos.android.ui.chat.SummaryCard {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.chat_bot_instructions), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
